@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tirpe
+      POSTGRES_USER: tirpe
+      POSTGRES_PASSWORD: tirpepassword
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+
+  ai-service:
+    build:
+      context: ./ai-service
+    restart: unless-stopped
+    ports:
+      - '8000:8000'
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: ${DATABASE_URL:-postgresql://tirpe:tirpepassword@postgres:5432/tirpe}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      AI_PROVIDER: ${AI_PROVIDER:-local}
+      AI_SERVICE_URL: ${AI_SERVICE_URL:-http://ai-service:8000}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MAX_OUTPUT_TOKENS: ${OPENAI_MAX_OUTPUT_TOKENS:-600}
+      WEATHER_API_KEY: ${WEATHER_API_KEY:-}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      FEATURE_CHATBOT_ENABLED: ${FEATURE_CHATBOT_ENABLED:-true}
+      FEATURE_DISASTER_ALERT_MODE: ${FEATURE_DISASTER_ALERT_MODE:-false}
+      FEATURE_SCAM_HOTSPOT_SIM: ${FEATURE_SCAM_HOTSPOT_SIM:-false}
+      CHAT_MEMORY_MAX_TURNS: ${CHAT_MEMORY_MAX_TURNS:-12}
+    depends_on:
+      - postgres
+      - redis
+      - ai-service
+    ports:
+      - '4000:4000'
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:4000/api}
+        VITE_MAPBOX_TOKEN: ${MAPBOX_TOKEN:-}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '5173:80'
+
+volumes:
+  postgres_data:
